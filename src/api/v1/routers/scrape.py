@@ -1,0 +1,70 @@
+import logging
+import asyncio
+
+from fastapi import APIRouter, status
+from fastapi.responses import JSONResponse
+
+from src.models.scrape import ScrapeRequest
+from src.services.facebook_scraper import FacebookScraperService
+from src.services.instagram_scraper import InstagramScraperService
+from src.services.tiktok_scraper import TiktokScraperService
+from src.services.x_scraper import XScraperService
+from src.services.rate_social_media import RateSocialMediaService
+
+logger = logging.getLogger(__name__)
+rateSocialMediaService = RateSocialMediaService()
+
+
+router = APIRouter(
+    prefix="/scrape",
+    tags=["scrape"],
+)
+
+
+@router.post(
+    "",
+    tags=["scrape"],
+)
+async def scrape(
+    data: ScrapeRequest,
+) -> JSONResponse:
+    """Scrape endpoint for processing scrape data.
+
+    Args:
+        data (ScrapeRequest): ScrapeRequest content
+    Returns:
+        JSONResponse: Object containing the data, status code, and error message.
+    """
+
+    facebook = FacebookScraperService()
+    instagram = InstagramScraperService()
+    tiktok = TiktokScraperService()
+    x = XScraperService()
+    log = logger.getChild("scrape")
+    log.debug(f"Received data: {data}")
+    facebook_results, instagram_results, tiktok_results, x_results = (
+        await asyncio.gather(
+            facebook.scrape(url=data.facebook, timeout=2000),
+            instagram.scrape(url=data.instagram, timeout=2000),
+            tiktok.scrape(url=data.tiktok, timeout=2000),
+            x.scrape(url=data.x, timeout=2000),
+        )
+    )
+
+    gathered_data = {
+        "facebook": facebook_results,
+        "instagram": instagram_results,
+        "tiktok": tiktok_results,
+        "x": x_results,
+    }
+
+    results = rateSocialMediaService.rate(gathered_data)
+    print("Results:", results)
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "data": results,
+            "status_code": status.HTTP_200_OK,
+        },
+    )
