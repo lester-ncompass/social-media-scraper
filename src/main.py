@@ -1,5 +1,4 @@
 import logging
-import nest_asyncio
 import asyncio
 import sys
 
@@ -17,7 +16,9 @@ logger = logging.getLogger(__name__)  # This logger will be used by the middlewa
 # ---------------------
 
 # Apply nest_asyncio to allow nested event loops
-nest_asyncio.apply()
+if type(asyncio.get_event_loop()).__module__ != 'uvloop.loop':
+    import nest_asyncio
+    nest_asyncio.apply()
 
 # Windows-specific event loop policy
 if sys.platform == "win32":
