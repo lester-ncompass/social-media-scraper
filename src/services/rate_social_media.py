@@ -47,6 +47,9 @@ class RateSocialMediaService:
         return round(total_score, 2)
 
     def calculate_overall_score(self, platform_scores: dict):
+        if not platform_scores:
+            return 0
+
         percentage = {
             "facebook": 50,
             "instagram": 30,
