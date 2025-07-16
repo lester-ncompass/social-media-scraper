@@ -10,7 +10,7 @@ def time_to_epoch(s: str) -> int:
     1. Relative time with units (e.g., "1m" for one minute ago, "3h" for three hours ago, "2d" for two days ago).
     2. Absolute date with abbreviated or full month name (e.g., "Jun 18, 2024" or "June 18, 2024").
     3. Full datetime in the format "YYYY-MM-DD HH:MM:SS" (e.g., "2025-07-06 12:47:20").
-    4. Date with month name and time (e.g. "July 9 at 3:10 am").
+    4. Date with month name and time (e.g. "July 9 at 3:10 am" or "29 June at 18:23").
     5. Month and day only, assuming the current year (e.g., "May 23").
 
     Args:
@@ -54,6 +54,15 @@ def time_to_epoch(s: str) -> int:
         return int(dt.timestamp())
     except ValueError:
         pass
+
+    # Try parsing date with month name and time (e.g. "29 June at 18:23")
+    for fmt in ("%d %B at %H:%M", "%d %B at %I:%M %p"):
+        try:
+            dt = datetime.strptime(s, fmt)
+            dt = dt.replace(year=now.year)
+            return int(dt.timestamp())
+        except ValueError:
+            continue
 
     # Handle full datetime like "2025-07-06 12:47:20"
     try:
