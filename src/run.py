@@ -16,4 +16,5 @@ def start():
         host=config.APP_HOST,
         port=config.APP_PORT,
         reload=config.DEBUG_MODE,
+        loop="asyncio",
     )
