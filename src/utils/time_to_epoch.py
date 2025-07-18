@@ -11,7 +11,7 @@ def time_to_epoch(s: str) -> int:
     2. Absolute date with abbreviated or full month name (e.g., "Jun 18, 2024" or "June 18, 2024").
     3. Full datetime in the format "YYYY-MM-DD HH:MM:SS" (e.g., "2025-07-06 12:47:20").
     4. Date with month name and time (e.g. "July 9 at 3:10 am" or "29 June at 18:23").
-    5. Month and day only, assuming the current year (e.g., "May 23").
+    5. Month and day only, assuming the current year (e.g., "May 23", "28 March").
 
     Args:
         s (str): The time string to convert.
@@ -78,4 +78,15 @@ def time_to_epoch(s: str) -> int:
     except ValueError:
         pass
 
+    # Handle month and day only, assuming the current year (e.g., "28 March")
+    try:
+        dt = datetime.strptime(s, "%d %B")
+        dt = dt.replace(year=now.year)
+        return int(dt.timestamp())
+    except ValueError:
+        pass
+
     raise ValueError(f"Unrecognized date format: {s}")
+
+
+print("Time: ", time_to_epoch("28 March"))
