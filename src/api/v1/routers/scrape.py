@@ -10,9 +10,11 @@ from src.services.instagram_scraper import InstagramScraperService
 from src.services.tiktok_scraper import TiktokScraperService
 from src.services.x_scraper import XScraperService
 from src.services.rate_social_media import RateSocialMediaService
+from src.services.result_feedback import ResultFeedbackService
 
 logger = logging.getLogger(__name__)
 rateSocialMediaService = RateSocialMediaService()
+resultFeedbackService = ResultFeedbackService()
 
 
 router = APIRouter(
@@ -58,8 +60,10 @@ async def scrape(
         "x": x_results,
     }
 
-    results = rateSocialMediaService.rate(gathered_data)
-    print("Results:", results)
+    scores = rateSocialMediaService.rate(gathered_data)
+    feedback = await resultFeedbackService.generate_feedback(gathered_data, scores)
+    log.info("Generated scores: %s, feedback: %s", scores, feedback)
+    results = { **scores, "feedback": feedback }
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,

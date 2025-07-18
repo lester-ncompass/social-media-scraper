@@ -1,3 +1,4 @@
+import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -21,6 +22,11 @@ class Config(BaseSettings):
     )  # e.g., DEBUG, INFO, WARNING, ERROR
     INSTAGRAM_COOKIES: str = Field("", validation_alias="INSTAGRAM_COOKIES")
     TIKTOK_COOKIES: str = Field("", validation_alias="TIKTOK_COOKIES")
+    TEXT_PROMPT_MODEL_NAME: str = Field("", validation_alias="TEXT_PROMPT_MODEL_NAME")
+    PREPROMPT_FILE_PATH: str = Field(
+        os.path.join("assets", "preprompt"), validation_alias="PREPROMPT_FILE_PATH"
+    )
+    GOOGLE_API_KEY: str = Field("", validation_alias="GOOGLE_API_KEY")
 
     model_config = SettingsConfigDict(
         env_file=".env",
