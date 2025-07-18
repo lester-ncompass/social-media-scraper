@@ -63,7 +63,7 @@ async def scrape(
     scores = rateSocialMediaService.rate(gathered_data)
     feedback = await resultFeedbackService.generate_feedback(gathered_data, scores)
     log.info("Generated scores: %s, feedback: %s", scores, feedback)
-    results = { **scores, "feedback": feedback }
+    results = {**scores, "feedback": feedback}
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,

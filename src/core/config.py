@@ -27,6 +27,7 @@ class Config(BaseSettings):
         os.path.join("assets", "preprompt"), validation_alias="PREPROMPT_FILE_PATH"
     )
     GOOGLE_API_KEY: str = Field("", validation_alias="GOOGLE_API_KEY")
+    APIFY_KEY: str = Field("", validation_alias="APIFY_KEY")
 
     model_config = SettingsConfigDict(
         env_file=".env",

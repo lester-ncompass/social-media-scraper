@@ -29,7 +29,8 @@ class FacebookScraperService:
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=self.headless)
                 context = browser.new_context(
-                    locale="en-US", extra_http_headers={"Accept-Language": "en-US,en;q=0.9"}
+                    locale="en-US",
+                    extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
                 )
                 page = context.new_page()
 
@@ -62,7 +63,8 @@ class FacebookScraperService:
                 )
                 page_like = (
                     tree.xpath("//a[contains(@href, 'friends_likes')]/strong").pop()
-                    if len(tree.xpath("//a[contains(@href, 'friends_likes')]/strong")) > 0
+                    if len(tree.xpath("//a[contains(@href, 'friends_likes')]/strong"))
+                    > 0
                     else None
                 )
                 page_follower = (
@@ -77,7 +79,9 @@ class FacebookScraperService:
                 )
                 review_path = tree.xpath("//a[contains(@href, '/reviews')]//span")
                 reviews = (
-                    review_path[0].text_content() if len(review_path) > 0 else "No reviews"
+                    review_path[0].text_content()
+                    if len(review_path) > 0
+                    else "No reviews"
                 )
                 posts = []
                 for post in post_age_list:

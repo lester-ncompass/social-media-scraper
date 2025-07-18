@@ -42,9 +42,7 @@ class ResultFeedbackService:
         """
         log = self.logger.getChild("generate_feedback")
         genai.configure(api_key=config.GOOGLE_API_KEY)
-        user_prompt = (
-            "Here is the resulting data that you will be analyzing:"
-        )
+        user_prompt = "Here is the resulting data that you will be analyzing:"
         user_prompt = user_prompt + f"\n---\n{raw_data}{scores}\n---\n"
         user_prompt = (
             user_prompt
@@ -57,16 +55,16 @@ class ResultFeedbackService:
                 system_instruction=self.SYSTEM_INSTRUCTION_TEXT,
             )
 
-            generation_config = genai.types.GenerationConfig(
-                temperature=1.0
-            )
+            generation_config = genai.types.GenerationConfig(temperature=1.0)
             response = await generative_model.generate_content_async(
                 user_prompt,
                 generation_config=generation_config,
             )
 
             if response.parts:
-                generated_feedback = "".join(part.text for part in response.parts).strip()
+                generated_feedback = "".join(
+                    part.text for part in response.parts
+                ).strip()
                 if response.prompt_feedback and response.prompt_feedback.block_reason:
                     block_reason_msg = (
                         response.prompt_feedback.block_reason_message

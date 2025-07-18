@@ -7,12 +7,50 @@ import requests
 from src.core.config import config
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
 from src.utils.time_to_epoch import time_to_epoch
+from apify_client import ApifyClient
 
 
 class InstagramScraperService:
     def __init__(self, headless=True):
         self.headless = headless
         self.executor = ThreadPoolExecutor(max_workers=1)
+        self.apify_client = ApifyClient(config.APIFY_KEY)
+
+    def _fallback(self, url):
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+        }
+        response = requests.get(url, headers=headers)
+        text = response.text.split("/n")[0]
+        pattern = (
+            r'content="([\d,\.]+)K? Followers, ([\d,\.]+) Following, ([\d,\.]+) Posts'
+        )
+        match = re.search(pattern, text)
+        page_details = str(match.group(0)).split('"').pop().split(" ")
+        followers = 0
+        is_verified = 1
+        posts = []
+        if match:
+            followers = page_details[0]
+        else:
+            raise Exception(f"Unable to scrape {url}")
+
+        run = self.apify_client.actor("nH2AHrwxeTRJoN5hX").call(
+            run_input={
+                "username": [
+                    url,
+                ],
+                "resultsLimit": 5,
+            }
+        )
+        for item in self.apify_client.dataset(run["defaultDatasetId"]).iterate_items():
+            posts.append(time_to_epoch(item["timestamp"]))
+
+        return {
+            "verified": is_verified,
+            "follower": convert_number_with_suffix(followers),
+            "posts": posts,
+        }
 
     def _check_url_sync(self, session, href):
         url = "https://www.instagram.com" + href
@@ -144,7 +182,10 @@ class InstagramScraperService:
                     "posts": dates,
                 }
         except Exception as e:
-            return {
-                "error": str(e),
-                "message": "Failed to scrape Instagram",
-            }
+            try:
+                return self._fallback(url)
+            except Exception as e:
+                return {
+                    "error": str(e),
+                    "message": "Failed to scrape Instagram",
+                }
