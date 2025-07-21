@@ -78,7 +78,6 @@ class RateSocialMediaService:
         return round(total_score, 2)
 
     def rate(self, data):
-        print("Data: ", data)
         MAX_FOLLOWERS = 10_000  # 10k
         MAX_LIKES = 10_000  # 10k
 

@@ -3,12 +3,14 @@ from concurrent.futures import ThreadPoolExecutor
 from playwright.sync_api import sync_playwright
 from lxml import html
 import re
+import logging
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
 from src.utils.time_to_epoch import time_to_epoch
 
 
 class FacebookScraperService:
     def __init__(self, headless=True):
+        self.logger = logging.getLogger("FacebookScraperService")
         self.headless = headless
         self.executor = ThreadPoolExecutor(max_workers=1)
 
@@ -22,8 +24,11 @@ class FacebookScraperService:
         )
 
     def _sync_scrape(self, url, timeout=2000):
+        log = self.logger.getChild("scrape")
         if not url:
             return "No URL provided."
+
+        log.info("Scraping facebook %s", url)
 
         try:
             with sync_playwright() as p:
@@ -106,7 +111,8 @@ class FacebookScraperService:
                 return gathered_data
 
         except Exception as e:
+            log.error("Failed to scrape Facebook: %s", e)
             return {
                 "error": str(e),
-                "message": "Failed to scrape Instagram",
+                "message": "Failed to scrape Facebook",
             }

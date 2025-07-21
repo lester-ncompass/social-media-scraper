@@ -4,6 +4,7 @@ from playwright.sync_api import sync_playwright
 from lxml import html
 import re
 import requests
+import logging
 from src.core.config import config
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
 from src.utils.time_to_epoch import time_to_epoch
@@ -12,6 +13,7 @@ from apify_client import ApifyClient
 
 class InstagramScraperService:
     def __init__(self, headless=True):
+        self.logger = logging.getLogger("InstagramScraperService")
         self.headless = headless
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.apify_client = ApifyClient(config.APIFY_KEY)
@@ -19,8 +21,14 @@ class InstagramScraperService:
     def _fallback(self, url):
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Referer": "https://www.google.com/",
+            "Connection": "keep-alive"
         }
-        response = requests.get(url, headers=headers)
+        session = requests.Session()
+        session.headers.update(headers)
+        response = session.get(url, headers=headers)
         text = response.text.split("/n")[0]
         pattern = (
             r'content="([\d,\.]+)K? Followers, ([\d,\.]+) Following, ([\d,\.]+) Posts'
@@ -76,8 +84,11 @@ class InstagramScraperService:
         )
 
     def _sync_scrape(self, url, timeout=2000):
+        log = self.logger.getChild("scrape")
         if not url:
             return "No URL provided."
+
+        log.info("Scraping instagram %s", url)
 
         url_length = len(url.split("/"))
         # Remove trailing slash, indicator is length is 5 when splitted
@@ -182,9 +193,13 @@ class InstagramScraperService:
                     "posts": dates,
                 }
         except Exception as e:
+            log.error(
+                "Failed to scrape Instagram using playwright: %s. Using fallback.", e
+            )
             try:
                 return self._fallback(url)
             except Exception as e:
+                log.error("Fallback failed: %s", e)
                 return {
                     "error": str(e),
                     "message": "Failed to scrape Instagram",
