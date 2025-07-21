@@ -98,10 +98,6 @@ class RateSocialMediaService:
             posts = info.get("posts") or []
             # Calculate post score based on recent posts within the last 30 days
             post_score = 0
-            try:
-                post_score = self.calculate_post_score(posts, 7)
-            except Exception as e:
-                print(e)
             post_score = self.calculate_post_score(posts, 7)
 
             if (platform == "x" or platform == "instagram") or (

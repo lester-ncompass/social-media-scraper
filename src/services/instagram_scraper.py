@@ -19,44 +19,32 @@ class InstagramScraperService:
         self.apify_client = ApifyClient(config.APIFY_KEY)
 
     def _fallback(self, url):
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Referer": "https://www.google.com/",
-            "Connection": "keep-alive"
-        }
-        session = requests.Session()
-        session.headers.update(headers)
-        response = session.get(url, headers=headers)
-        text = response.text.split("/n")[0]
-        pattern = (
-            r'content="([\d,\.]+)K? Followers, ([\d,\.]+) Following, ([\d,\.]+) Posts'
-        )
-        match = re.search(pattern, text)
-        page_details = str(match.group(0)).split('"').pop().split(" ")
-        followers = 0
-        is_verified = 1
         posts = []
-        if match:
-            followers = page_details[0]
-        else:
-            raise Exception(f"Unable to scrape {url}")
 
-        run = self.apify_client.actor("nH2AHrwxeTRJoN5hX").call(
+        run = self.apify_client.actor("apify/instagram-scraper").call(
             run_input={
-                "username": [
+                "directUrls": [
                     url,
                 ],
-                "resultsLimit": 5,
+                "enhanceUserSearchWithFacebookPage": False,
+                "isUserReelFeedURL": False,
+                "isUserTaggedFeedURL": False,
+                "resultsLimit": 1,
+                "resultsType": "details",
+                "searchLimit": 1,
+                "searchType": "hashtag"
             }
         )
         for item in self.apify_client.dataset(run["defaultDatasetId"]).iterate_items():
-            posts.append(time_to_epoch(item["timestamp"]))
+            followers = item["followersCount"]
+            verified = item["verified"]
+            for post in item["latestPosts"]:
+                posts.append(time_to_epoch(post["timestamp"]))
+            break
 
         return {
-            "verified": is_verified,
-            "follower": convert_number_with_suffix(followers),
+            "verified": int(verified),
+            "follower": convert_number_with_suffix(str(followers)),
             "posts": posts,
         }
 
