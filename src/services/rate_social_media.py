@@ -17,7 +17,7 @@ class RateSocialMediaService:
         SECOND_WEEK_SECONDS = 14 * 24 * 60 * 60  # days x hours x minutes x seconds
         THIRD_WEEK_SECONDS = 21 * 24 * 60 * 60  # days x hours x minutes x seconds
         LAST_WEEK_SECONDS = 30 * 24 * 60 * 60  # days x hours x minutes x seconds
-        sorted_posts = sorted(post_list, reverse=True)[:5]
+        sorted_posts = sorted(post_list, reverse=True)
         post_length = len(sorted_posts)
 
         if post_length == 0:

@@ -44,14 +44,18 @@ async def scrape(
     x = XScraperService()
     log = logger.getChild("scrape")
     log.debug(f"Received data: {data}")
-    facebook_results, instagram_results, tiktok_results, x_results = (
-        await asyncio.gather(
-            facebook.scrape(url=data.facebook, timeout=2000),
-            instagram.scrape(url=data.instagram, timeout=2000),
-            tiktok.scrape(url=data.tiktok, timeout=2000),
-            x.scrape(url=data.x, timeout=2000),
-        )
-    )
+    # facebook_results, instagram_results, tiktok_results, x_results = (
+    #     await asyncio.gather(
+    #         facebook.scrape(url=data.facebook, timeout=2000),
+    #         instagram.scrape(url=data.instagram, timeout=2000),
+    #         tiktok.scrape(url=data.tiktok, timeout=2000),
+    #         x.scrape(url=data.x, timeout=2000),
+    #     )
+    # )
+    facebook_results = await facebook.scrape(url=data.facebook, timeout=2000)
+    instagram_results = await instagram.scrape(url=data.instagram, timeout=2000)
+    tiktok_results = await tiktok.scrape(url=data.tiktok, timeout=2000)
+    x_results = await x.scrape(url=data.x, timeout=2000)
 
     gathered_data = {
         "facebook": facebook_results,
