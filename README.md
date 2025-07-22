@@ -1,12 +1,12 @@
-# ai-app-scaffolding
-Template for future FastAPI projects with AI
+# social-media-scraper
+A social media scraper web application built with FastAPI
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](...) [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE) [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](...)
 
 ## 🗂️ Project Structure
 
 ```
-ai-app-scaffolding
+social-media-scraper
 ├── assets/                     # Container for assets
 ├── src/                        # Main application code
 │   ├── api/                    # API Layer: Routers & Endpoints

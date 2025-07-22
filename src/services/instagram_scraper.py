@@ -1,14 +1,16 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from playwright.sync_api import sync_playwright
-from lxml import html
-import re
-import requests
 import logging
+import re
+from concurrent.futures import ThreadPoolExecutor
+
+import requests
+from apify_client import ApifyClient
+from lxml import html
+from playwright.sync_api import sync_playwright
+
 from src.core.config import config
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
 from src.utils.time_to_epoch import time_to_epoch
-from apify_client import ApifyClient
 
 
 class InstagramScraperService:
@@ -18,7 +20,25 @@ class InstagramScraperService:
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.apify_client = ApifyClient(config.APIFY_KEY)
 
-    def _fallback(self, url):
+    def _fallback_to_apify(self, url):
+        """
+        Fallback method to retrieve Instagram data using Apify's Instagram scraper.
+
+        This method interacts with the Apify platform to scrape Instagram data
+        in situations where the main scraping method fails. It retrieves the
+        number of followers, verification status, and latest post timestamps
+        for a specific Instagram URL.
+
+        Args:
+            url (str): The Instagram URL to scrape.
+
+        Returns:
+            dict: A dictionary containing:
+                - verified (int): Whether the account is verified 1 or 0.
+                - follower (str): The number of followers in a human-readable format.
+                - posts (list): A list of timestamps of the latest posts.
+        """
+
         posts = []
 
         run = self.apify_client.actor("apify/instagram-scraper").call(
@@ -32,7 +52,7 @@ class InstagramScraperService:
                 "resultsLimit": 1,
                 "resultsType": "details",
                 "searchLimit": 1,
-                "searchType": "hashtag"
+                "searchType": "hashtag",
             }
         )
         for item in self.apify_client.dataset(run["defaultDatasetId"]).iterate_items():
@@ -48,7 +68,26 @@ class InstagramScraperService:
             "posts": posts,
         }
 
-    def _check_url_sync(self, session, href):
+    def _check_url(self, session, href):
+        """
+        Extracts the timestamp of the most recent post from an Instagram URL.
+
+        This method constructs the full URL using the provided href, sends a GET request
+        to retrieve the page content, and parses the HTML to find the post date. The
+        date is then converted to an epoch timestamp.
+
+        Args:
+            session (requests.Session): The HTTP session for making requests.
+            href (str): The relative URL path of the Instagram post.
+
+        Returns:
+            int: The epoch timestamp of the most recent post date.
+
+        Raises:
+            requests.exceptions.HTTPError: If the HTTP request returns an
+                unsuccessful status code.
+        """
+
         url = "https://www.instagram.com" + href
         response = session.get(url)
         response.raise_for_status()  # Raises exception for bad status codes
@@ -72,6 +111,26 @@ class InstagramScraperService:
         )
 
     def _sync_scrape(self, url, timeout=2000):
+        """
+        Synchronously scrapes Instagram page data using Playwright.
+
+        This method navigates to a given Instagram URL, waits for the content to load,
+        and extracts various data points such as verification status, followers, and
+        post timestamps. The scraping process involves setting custom headers, closing
+        pop-ups, scrolling to load more content, and parsing the rendered HTML.
+
+        Args:
+            url (str): The Instagram URL to scrape.
+            timeout (int, optional): The time to wait for page content to load.
+
+        Returns:
+            dict: A dictionary containing the scraped data, including:
+                - verified (bool): Whether the account is verified.
+                - follower (int): The number of followers, if available.
+                - posts (list): A list of timestamps of the posts.
+                - error (str, optional): An error message if scraping fails.
+                - message (str, optional): A failure message if scraping fails.
+        """
         log = self.logger.getChild("scrape")
         if not url:
             return "No URL provided."
@@ -92,19 +151,6 @@ class InstagramScraperService:
                     locale="en-US",
                     extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
                 )
-                # context.add_cookies(
-                #     [
-                #         {
-                #             "name": "sessionid",
-                #             "value": config.INSTAGRAM_COOKIES,
-                #             "domain": "www.instagram.com",
-                #             "path": "/",
-                #             "httpOnly": True,
-                #             "secure": True,
-                #             "sameSite": "None",
-                #         }
-                #     ]
-                # )
                 page = context.new_page()
 
                 # Set a realistic user-agent
@@ -127,11 +173,10 @@ class InstagramScraperService:
                     close_button.pop().click()
                 # Wait for page content to load (you can adjust the selector)
                 page.wait_for_timeout(timeout)  # wait 5 seconds
-
                 # Get the full HTML after JS has rendered
                 html_content = page.content()
-                with open("instagram.html", "w", encoding="utf-8") as file:
-                    file.write(html_content)
+                browser.close()
+
                 tree = html.fromstring(html_content)
                 page_follower = tree.xpath(
                     "//span/span/span[contains(@class, 'html-span')]"  # noqa
@@ -160,7 +205,7 @@ class InstagramScraperService:
                         futures = []
                         for href in hrefs:
                             future = http_executor.submit(
-                                self._check_url_sync, session, href
+                                self._check_url, session, href
                             )
                             futures.append(future)
                         # Collect results
@@ -171,8 +216,8 @@ class InstagramScraperService:
                                 if date:  # Only add non-None dates
                                     dates.append(date)
                             except Exception as e:
-                                print(f"Error processing URL: {e}")
-                browser.close()
+                                log.error("Error processing URL: %s", e)
+
                 return {
                     "verified": is_verified,
                     "follower": convert_number_with_suffix(
@@ -180,12 +225,13 @@ class InstagramScraperService:
                     ),
                     "posts": dates,
                 }
+
         except Exception as e:
             log.error(
                 "Failed to scrape Instagram using playwright: %s. Using fallback.", e
             )
             try:
-                return self._fallback(url)
+                return self._fallback_to_apify(url)
             except Exception as e:
                 log.error("Fallback failed: %s", e)
                 return {

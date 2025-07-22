@@ -1,11 +1,13 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-import threading
-from playwright.sync_api import sync_playwright
-from lxml import html
-from TikTokApi import TikTokApi  # type: ignore
 import datetime
 import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+from lxml import html
+from playwright.sync_api import sync_playwright
+from TikTokApi import TikTokApi  # type: ignore
+
 from src.core.config import config
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
 from src.utils.time_to_epoch import time_to_epoch
@@ -41,6 +43,16 @@ class TiktokScraperService:
         return result[0]
 
     async def _get_video_dates_async(self, url):
+        """
+        Retrieves the creation timestamps of the latest 5 videos from a TikTok user.
+
+        Args:
+            url (str): The TikTok URL of the user.
+
+        Returns:
+            list: A list of up to 5 timestamps of the latest videos, in epoch seconds.
+        """
+
         async with TikTokApi() as api:
             await api.create_sessions(
                 ms_tokens=[config.TIKTOK_COOKIES],
@@ -59,7 +71,7 @@ class TiktokScraperService:
                         ).strftime("%Y-%m-%d %H:%M:%S")
                     )
                 )
-                if len(video_list) == 5:
+                if len(video_list) == 10:
                     break
 
         return video_list
@@ -74,6 +86,27 @@ class TiktokScraperService:
         )
 
     def _sync_scrape(self, url, timeout=2000):
+        """
+        Synchronously scrapes Tiktok page data using Playwright.
+
+        This method navigates to a given Tiktok URL, waits for the content to load,
+        and extracts various data points such as verification status, likes, followers,
+        and post timestamps. The scraping process involves setting custom headers,
+        closing pop-ups, scrolling to load more content, and parsing the rendered HTML.
+
+        Args:
+            url (str): The Tiktok URL to scrape.
+            timeout (int, optional): The time to wait for page content to load.
+
+        Returns:
+            dict: A dictionary containing the scraped data, including:
+                - verified (bool): Whether the account is verified.
+                - likes (int): The number of likes, if available.
+                - follower (int): The number of followers, if available.
+                - posts (list): A list of timestamps of the posts.
+                - error (str, optional): An error message if scraping fails.
+                - message (str, optional): A failure message if scraping fails.
+        """
         log = self.logger.getChild("scrape")
         if not url:
             return "No URL provided."
@@ -106,6 +139,7 @@ class TiktokScraperService:
 
                 # Get the full HTML after JS has rendered
                 html_content = page.content()
+                browser.close()
                 tree = html.fromstring(html_content)
                 page_follower = tree.xpath(
                     "//div/strong[contains(@title, 'Followers')]"
@@ -122,7 +156,6 @@ class TiktokScraperService:
                     else False
                 )
                 posts = self._get_video_dates_sync(url)
-                browser.close()
 
                 return {
                     "verified": is_verified,

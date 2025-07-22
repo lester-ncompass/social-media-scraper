@@ -12,6 +12,25 @@ class RateSocialMediaService:
         return (value / max_value) * max_score
 
     def calculate_post_score(self, post_list, max_score):
+        """
+        Calculate the post score based on the timestamps of the gathered recent posts.
+
+        The score is calculated as follows:
+
+        - The most recent week gets a full score (1.0)
+        - The second most recent week gets 0.75 of the score
+        - The third most recent week gets 0.5 of the score
+        - The fourth most recent week gets 0.25 of the score
+
+        The total score is then divided by the number of posts in the list.
+
+        Args:
+            post_list (list): A list of timestamps of the gathered recent posts.
+            max_score (float): The maximum score that can be given.
+
+        Returns:
+            float: The calculated post score.
+        """
         now = time.time()
         FIRST_WEEK_SECONDS = 7 * 24 * 60 * 60  # days x hours x minutes x seconds
         SECOND_WEEK_SECONDS = 14 * 24 * 60 * 60  # days x hours x minutes x seconds
@@ -47,6 +66,21 @@ class RateSocialMediaService:
         return round(total_score, 2)
 
     def calculate_overall_score(self, platform_scores: dict):
+        """
+        Calculate the overall score based on the scores of individual platforms.
+
+        Given a dictionary of platform names as keys and scores as values, this
+        function will calculate the overall score by assigning a percentage of
+        importance to each platform and multiplying the score of each platform by
+        that percentage. The total score is then returned.
+
+        Args:
+            platform_scores (dict): A dictionary with platform names as keys and
+                scores as values.
+
+        Returns:
+            float: The total score, rounded to the nearest 2 decimal places.
+        """
         if not platform_scores:
             return 0
 
@@ -78,6 +112,15 @@ class RateSocialMediaService:
         return round(total_score, 2)
 
     def rate(self, data):
+        """
+        Rates a given social media account based on follower count, likes, posts within the last 30 days, and verification status.
+
+        Args:
+            data (dict): A dictionary containing social media platform names as keys and dictionaries of respective data as values.
+
+        Returns:
+            dict: A dictionary with platform names as keys, scores as values, and an "overallRating" key with the total score.
+        """  # noqa
         MAX_FOLLOWERS = 10_000  # 10k
         MAX_LIKES = 10_000  # 10k
 
@@ -120,37 +163,3 @@ class RateSocialMediaService:
             "platformScores": platform_scores,
             "overallRating": overall,
         }
-
-
-# Example data (timestamps are Unix seconds)
-# data = {
-#     # "facebook": {
-#     #     "verified": True,
-#     #     "like": 100,
-#     #     "follower": 9000000,
-#     #     "reviews": "No reviews",
-#     #     "posts": [1752048421, 1752048421, 1751962021, 1751875621, 1751789221],
-#     # },
-#     # "instagram": {
-#     #     "verified": True,
-#     #     "follower": 542000,
-#     #     "posts": [1752076800, 1751990400, 1751904000, 1751817600, 1751731200],
-#     # },
-#     "tiktok": {
-#         "verified": True,
-#         "likes": 12000000,
-#         "follower": 1500000,
-#         "posts": [1752045631, 1751777240, 1751623208, 1750932644, 1750759223],
-#     },
-#     "x": {
-#         "verified": True,
-#         "follower": 579100,
-#         "posts": [1718640000, 1579622400, 1645200000, 1720800000],
-#     },
-# }
-
-
-# data = {'facebook': {'verified': False, 'reviews': '78% recommend (412 Reviews)\ufeff', 'posts': [1751221380, 1750188480, 1750003380, 1749139200, 1748534400, 1748361600, 1747238400]}, 'instagram': 'No URL provided.', 'tiktok': 'No URL provided.', 'x': 'No URL provided.'}
-# service = RateSocialMediaService()
-# result = service.rate(data)
-# print(result)

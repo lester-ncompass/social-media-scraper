@@ -1,5 +1,4 @@
 import logging
-import asyncio
 
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
@@ -7,10 +6,10 @@ from fastapi.responses import JSONResponse
 from src.models.scrape import ScrapeRequest
 from src.services.facebook_scraper import FacebookScraperService
 from src.services.instagram_scraper import InstagramScraperService
-from src.services.tiktok_scraper import TiktokScraperService
-from src.services.x_scraper import XScraperService
 from src.services.rate_social_media import RateSocialMediaService
 from src.services.result_feedback import ResultFeedbackService
+from src.services.tiktok_scraper import TiktokScraperService
+from src.services.x_scraper import XScraperService
 
 logger = logging.getLogger(__name__)
 rateSocialMediaService = RateSocialMediaService()

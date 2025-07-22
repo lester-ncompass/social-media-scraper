@@ -1,9 +1,11 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from playwright.sync_api import sync_playwright
-from lxml import html
-import re
 import logging
+import re
+from concurrent.futures import ThreadPoolExecutor
+
+from lxml import html
+from playwright.sync_api import sync_playwright
+
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
 from src.utils.time_to_epoch import time_to_epoch
 
@@ -24,6 +26,30 @@ class FacebookScraperService:
         )
 
     def _sync_scrape(self, url, timeout=2000):
+        """
+        Synchronously scrapes Facebook page data using Playwright.
+
+        This method navigates to a given Facebook URL, waits for the content to load,
+        and extracts various data points such as verification status, reviews, likes,
+        followers, and post timestamps. The scraping process involves setting custom
+        headers, closing pop-ups, scrolling to load more content, and parsing the
+        rendered HTML.
+
+        Args:
+            url (str): The Facebook URL to scrape.
+            timeout (int, optional): The time to wait for page content to load.
+
+        Returns:
+            dict: A dictionary containing the scraped data, including:
+                - verified (bool): Whether the account is verified.
+                - reviews (str): The text content of reviews or "No reviews".
+                - posts (list): A list of timestamps of the posts.
+                - like (int): The number of likes, if available.
+                - follower (int): The number of followers, if available.
+                - error (str, optional): An error message if scraping fails.
+                - message (str, optional): A failure message if scraping fails.
+        """
+
         log = self.logger.getChild("scrape")
         if not url:
             return "No URL provided."
@@ -62,6 +88,7 @@ class FacebookScraperService:
 
                 # Get the full HTML after JS has rendered
                 html_content = page.content()
+                browser.close()
                 tree = html.fromstring(html_content)
                 post_age_list = tree.xpath(
                     "//div[contains(@data-pagelet, 'TimelineFeedUnit')]//div[2]/span//span//a[contains(@role, 'link')]"  # noqa
@@ -94,7 +121,6 @@ class FacebookScraperService:
                         time_to_epoch(re.sub(r"\s+", " ", post.text_content()).strip())
                     )
 
-                browser.close()
                 gathered_data = {
                     "verified": is_verified,
                     "reviews": reviews,

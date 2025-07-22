@@ -1,9 +1,11 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from playwright.sync_api import sync_playwright
-from lxml import html
-import re
 import logging
+import re
+from concurrent.futures import ThreadPoolExecutor
+
+from lxml import html
+from playwright.sync_api import sync_playwright
+
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
 from src.utils.time_to_epoch import time_to_epoch
 
@@ -24,6 +26,26 @@ class XScraperService:
         )
 
     def _sync_scrape(self, url, timeout=2000):
+        """
+        Synchronously scrapes X page data using Playwright.
+
+        This method navigates to a given X URL, waits for the content to load,
+        and extracts various data points such as verification status, followers, and
+        post timestamps. The scraping process involves setting custom headers, closing
+        pop-ups, scrolling to load more content, and parsing the rendered HTML.
+
+        Args:
+            url (str): The X URL to scrape.
+            timeout (int, optional): The time to wait for page content to load.
+
+        Returns:
+            dict: A dictionary containing the scraped data, including:
+                - verified (bool): Whether the account is verified.
+                - follower (int): The number of followers, if available.
+                - posts (list): A list of timestamps of the posts.
+                - error (str, optional): An error message if scraping fails.
+                - message (str, optional): A failure message if scraping fails.
+        """
         log = self.logger.getChild("scrape")
         if not url:
             return "No URL provided."
@@ -64,6 +86,7 @@ class XScraperService:
 
                 # Get the full HTML after JS has rendered
                 html_content = page.content()
+                browser.close()
                 tree = html.fromstring(html_content)
                 post_age_list = tree.xpath(
                     "//*[contains(@href, 'status')][contains(@dir, 'ltr')]"
@@ -81,7 +104,6 @@ class XScraperService:
                     posts.append(
                         time_to_epoch(re.sub(r"\s+", " ", post.text_content()).strip())
                     )
-                browser.close()
                 return {
                     "verified": is_verified,
                     "follower": convert_number_with_suffix(
@@ -89,6 +111,7 @@ class XScraperService:
                     ),
                     "posts": posts,
                 }
+
         except Exception as e:
             log.error("Error while scraping X: %s", e)
             return {

@@ -1,8 +1,8 @@
-import logging
 import asyncio
+import logging
 import sys
-import nest_asyncio
 
+import nest_asyncio  # type: ignore
 from fastapi import FastAPI
 
 from src.api.v1.api_router import api_v1_router

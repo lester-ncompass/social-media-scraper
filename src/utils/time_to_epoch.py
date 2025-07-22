@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta
 import re
+from datetime import datetime, timedelta
 
 
 def time_to_epoch(s: str) -> int:
@@ -22,7 +22,7 @@ def time_to_epoch(s: str) -> int:
 
     Raises:
         ValueError: If the input string is in an unrecognized format or contains an unknown time unit.
-    """
+    """  # noqa
 
     now = datetime.now()
 
@@ -41,7 +41,7 @@ def time_to_epoch(s: str) -> int:
             raise ValueError(f"Unknown time unit: {unit}")
         return int(dt.timestamp())
 
-    # Try parsing absolute date with abbreviated or full month name (e.g., "Jun 18, 2024" or "June 18, 2024")
+    # Try parsing absolute date with abbreviated or full month name (e.g., "Jun 18, 2024" or "June 18, 2024")  # noqa
     for fmt in ("%b %d, %Y", "%B %d, %Y"):
         try:
             dt = datetime.strptime(s, fmt)
@@ -86,7 +86,7 @@ def time_to_epoch(s: str) -> int:
     except ValueError:
         pass
 
-    # Handle month and day only, assuming the current year (e.g., "28 March")
+    # Handle day and month only, assuming the current year (e.g., "28 March")
     try:
         dt = datetime.strptime(s, "%d %B")
         dt = dt.replace(year=now.year)
