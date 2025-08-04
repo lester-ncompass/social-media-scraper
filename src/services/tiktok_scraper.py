@@ -307,6 +307,9 @@ class TiktokScraperService:
 
     async def scrape_via_httpx(self, url, timeout=2000):
         log = self.logger.getChild("scrape_via_httpx")
+        if not url:
+            return "No URL provided."
+
         log.info("Scraping tiktok via httpx %s", url)
         scraped = self.scrape_using_request(url)
         posts = self.extract_post_using_requests(scraped["secUid"])
