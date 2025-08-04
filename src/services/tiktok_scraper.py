@@ -1,9 +1,12 @@
 import asyncio
 import datetime
 import logging
+import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import parse_qs, urlparse
 
+import httpx
 from lxml import html
 from playwright.sync_api import sync_playwright
 from TikTokApi import TikTokApi  # type: ignore
@@ -18,6 +21,29 @@ class TiktokScraperService:
         self.logger = logging.getLogger("TiktokScraperService")
         self.headless = headless
         self.executor = ThreadPoolExecutor(max_workers=1)
+        self.posts = []
+
+    def scrape_using_request(self, url):
+        with httpx.Client() as client:
+            response = client.get(url)
+            data = response.text
+            # Extract secUid
+            secuid_match = re.search(r'"secUid"\s*:\s*"([^"]+)"', data)
+            secuid = secuid_match.group(1) if secuid_match else None
+
+            # Extract verified (bool)
+            verified_match = re.search(r'"verified"\s*:\s*(true|false)', data)
+            verified = verified_match.group(1) == "true" if verified_match else None
+
+            # Extract followerCount (from stats or statsV2)
+            followers_match = re.search(r'"followerCount"\s*:\s*"?(\d+)"?', data)
+            followers = int(followers_match.group(1)) if followers_match else None
+
+            return {
+                "secUid": secuid,
+                "verified": verified,
+                "followerCount": followers,
+            }
 
     def _get_video_dates_sync(
         self,
@@ -76,6 +102,38 @@ class TiktokScraperService:
 
         return video_list
 
+    def handle_response(self, response):
+        log = self.logger.getChild("handle_response")
+        url = response.url
+        if "/api/post/item_list/" in url:
+            http_header = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0",  # noqa
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.tiktok.com/",
+                "Cookie": f"msToken={config.TIKTOK_COOKIES}; odinId=YOUR_ODINID; device_id=7509009447768409608;",  # noqa
+            }
+            # Wait for full body to be available
+            parsed_url = urlparse(url)
+            params = parse_qs(parsed_url.query)
+
+            params["data_collection_enabled"] = True
+            params["device_id"] = 7509009447768409608
+            params["screen_height"] = 1080
+            params["screen_width"] = 1920
+
+            try:
+                r = httpx.get(
+                    "https://www.tiktok.com/api/post/item_list/",
+                    params=params,
+                    headers=http_header,
+                    timeout=10,
+                )
+                data = r.json()
+                self.posts = [item["createTime"] for item in data["itemList"]]
+
+            except Exception as e:
+                log.error("Error reading body: %s", e)
+
     async def scrape(self, url, timeout=2000):
         """
         Run sync Playwright in a thread pool to avoid event loop conflicts
@@ -122,14 +180,18 @@ class TiktokScraperService:
                     locale="en-US",
                     extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
                 )
+                cookie = [
+                    {
+                        "name": "msToken",
+                        "value": config.TIKTOK_COOKIES,
+                        "domain": "www.tiktok.com",
+                        "path": "/",
+                    }
+                ]
+                context.add_cookies(cookie)
                 page = context.new_page()
 
-                # Set a realistic user-agent
-                page.set_extra_http_headers(
-                    {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"  # noqa
-                    }
-                )
+                page.on("response", self.handle_response)
 
                 # Navigate to the page
                 page.goto(url, wait_until="networkidle", timeout=60000)
@@ -155,7 +217,8 @@ class TiktokScraperService:
                     > 0
                     else False
                 )
-                posts = self._get_video_dates_sync(url)
+                # posts = self._get_video_dates_sync(url)
+                posts = self.posts
 
                 return {
                     "verified": is_verified,
