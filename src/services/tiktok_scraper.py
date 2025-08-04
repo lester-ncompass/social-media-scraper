@@ -23,28 +23,6 @@ class TiktokScraperService:
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.posts = []
 
-    def scrape_using_request(self, url):
-        with httpx.Client() as client:
-            response = client.get(url)
-            data = response.text
-            # Extract secUid
-            secuid_match = re.search(r'"secUid"\s*:\s*"([^"]+)"', data)
-            secuid = secuid_match.group(1) if secuid_match else None
-
-            # Extract verified (bool)
-            verified_match = re.search(r'"verified"\s*:\s*(true|false)', data)
-            verified = verified_match.group(1) == "true" if verified_match else None
-
-            # Extract followerCount (from stats or statsV2)
-            followers_match = re.search(r'"followerCount"\s*:\s*"?(\d+)"?', data)
-            followers = int(followers_match.group(1)) if followers_match else None
-
-            return {
-                "secUid": secuid,
-                "verified": verified,
-                "followerCount": followers,
-            }
-
     def _get_video_dates_sync(
         self,
         url,
@@ -102,7 +80,58 @@ class TiktokScraperService:
 
         return video_list
 
+    def scrape_using_request(self, url):
+        """
+        Scrape TikTok page data using httpx.
+
+        This method sends a GET request to the provided TikTok URL, extracts the
+        HTML content, and parses it to extract the secUid, verification status, and
+        follower count.
+
+        Args:
+            url (str): The TikTok URL to scrape.
+
+        Returns:
+            dict: A dictionary containing the scraped data, including:
+                - secUid (str): The secUid of the TikTok account.
+                - verified (bool): Whether the account is verified.
+                - followerCount (int): The number of followers, if available.
+        """
+        with httpx.Client() as client:
+            response = client.get(url)
+            data = response.text
+            # Extract secUid
+            secuid_match = re.search(r'"secUid"\s*:\s*"([^"]+)"', data)
+            secuid = secuid_match.group(1) if secuid_match else None
+
+            # Extract verified (bool)
+            verified_match = re.search(r'"verified"\s*:\s*(true|false)', data)
+            verified = verified_match.group(1) == "true" if verified_match else None
+
+            # Extract followerCount (from stats or statsV2)
+            followers_match = re.search(r'"followerCount"\s*:\s*"?(\d+)"?', data)
+            followers = int(followers_match.group(1)) if followers_match else None
+
+            return {
+                "secUid": secuid,
+                "verified": verified,
+                "followerCount": followers,
+            }
+
     def handle_response(self, response):
+        """
+        Handles the response from TikTok's post item list API.
+
+        Given a Playwright response object, this method extracts the post creation
+        timestamps from the response content and stores them in the `self.posts`
+        attribute.
+
+        Args:
+            response (Response): The Playwright response object.
+
+        Returns:
+            None
+        """
         log = self.logger.getChild("handle_response")
         url = response.url
         if "/api/post/item_list/" in url:
@@ -133,6 +162,47 @@ class TiktokScraperService:
 
             except Exception as e:
                 log.error("Error reading body: %s", e)
+
+    def extract_post_using_requests(self, secUid):
+        """
+        Extracts post timestamps using the TikTok API via HTTPX.
+
+        This method takes in a secUid, constructs a GET request to the TikTok API
+        with the required headers and parameters, and parses the JSON response to
+        retrieve the post timestamps.
+
+        Args:
+            secUid (str): The secure user ID of the TikTok account.
+
+        Returns:
+            None
+        """
+        api_endpoint = "https://www.tiktok.com/api/post/item_list/"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0",  # noqa
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.tiktok.com/",
+            "Cookie": f"msToken={config.TIKTOK_COOKIES}; odinId=YOUR_ODINID; device_id=7509009447768409608;",  # noqa
+        }
+        params = {
+            "WebIdLastTime": ["1748327509"],
+            "aid": ["1988"],
+            "app_language": ["en"],
+            "app_name": ["tiktok_web"],
+            "cookie_enabled": ["true"],
+            "count": ["35"],
+            "cursor": ["0"],
+            "data_collection_enabled": ["true"],
+            "device_id": ["7509009447768409608"],
+            "odinId": ["7534585605200921607"],
+            "secUid": [secUid],
+            "msToken": [config.TIKTOK_COOKIES],
+        }
+
+        r = httpx.get(api_endpoint, params=params, headers=headers, timeout=10)
+        data = r.json()
+        return [item["createTime"] for item in data["itemList"]]
 
     async def scrape(self, url, timeout=2000):
         """
@@ -234,3 +304,15 @@ class TiktokScraperService:
                 "error": str(e),
                 "message": "Failed to scrape Tiktok",
             }
+
+    async def scrape_via_httpx(self, url, timeout=2000):
+        log = self.logger.getChild("scrape_via_httpx")
+        log.info("Scraping tiktok via httpx %s", url)
+        scraped = self.scrape_using_request(url)
+        posts = self.extract_post_using_requests(scraped["secUid"])
+
+        return {
+            "verified": scraped["verified"],
+            "follower": convert_number_with_suffix(str(scraped["followerCount"])),
+            "posts": posts,
+        }
