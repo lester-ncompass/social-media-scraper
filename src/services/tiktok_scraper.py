@@ -60,9 +60,7 @@ class TiktokScraperService:
         async with TikTokApi() as api:
             await api.create_sessions(
                 ms_tokens=[config.TIKTOK_COOKIES],
-                num_sessions=5,
-                sleep_after=3,
-                browser="chromium",
+                num_sessions=1,
             )
             # Retrieves the username from the URL
             username = url.split("/")[-1].split("@")[-1]
@@ -261,7 +259,7 @@ class TiktokScraperService:
                 context.add_cookies(cookie)
                 page = context.new_page()
 
-                page.on("response", self.handle_response)
+                # page.on("response", self.handle_response)
 
                 # Navigate to the page
                 page.goto(url, wait_until="networkidle", timeout=60000)
@@ -287,8 +285,8 @@ class TiktokScraperService:
                     > 0
                     else False
                 )
-                # posts = self._get_video_dates_sync(url)
-                posts = self.posts
+                posts = self._get_video_dates_sync(url)
+                # posts = self.posts
                 gathered_data = {
                     "verified": is_verified,
                     "likes": convert_number_with_suffix(page_likes.text_content()),
