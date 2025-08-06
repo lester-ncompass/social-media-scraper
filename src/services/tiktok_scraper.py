@@ -61,6 +61,15 @@ class TiktokScraperService:
             await api.create_sessions(
                 ms_tokens=[config.TIKTOK_COOKIES],
                 num_sessions=1,
+                override_browser_args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-web-security",
+                    "--disable-features=VizDisplayCompositor",
+                    "--memory-pressure-off",
+                    "--max_old_space_size=256",  # Limit Node.js heap size
+                ],
             )
             # Retrieves the username from the URL
             username = url.split("/")[-1].split("@")[-1]
@@ -239,64 +248,78 @@ class TiktokScraperService:
 
         log.info("Scraping tiktok %s", url)
         try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(
-                    headless=self.headless
-                )  # Set headless=True if you don't want to see the browser
-                context = browser.new_context(
-                    has_touch=True,
-                    locale="en-US",
-                    extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
-                )
-                cookie = [
-                    {
-                        "name": "msToken",
-                        "value": config.TIKTOK_COOKIES,
-                        "domain": "www.tiktok.com",
-                        "path": "/",
-                    }
-                ]
-                context.add_cookies(cookie)
-                page = context.new_page()
-
-                # page.on("response", self.handle_response)
-
-                # Navigate to the page
-                page.goto(url, wait_until="networkidle", timeout=60000)
-
-                # Wait for page content to load (you can adjust the selector)
-                page.wait_for_timeout(timeout=timeout)  # wait 5 seconds
-
-                # Get the full HTML after JS has rendered
-                html_content = page.content()
-                browser.close()
-                tree = html.fromstring(html_content)
-                page_follower = tree.xpath(
-                    "//div/strong[contains(@title, 'Followers')]"
-                ).pop()  # noqa
-                page_likes = tree.xpath("//div/strong[contains(@title, 'Likes')]").pop()
-                is_verified = (
-                    True
-                    if len(
-                        tree.xpath(
-                            "//h1[@data-e2e='user-title']/following-sibling::*[1][self::svg]"  # noqa
-                        )
+            page_likes = None
+            is_verified = False
+            try:
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(
+                        headless=self.headless
+                    )  # Set headless=True if you don't want to see the browser
+                    context = browser.new_context(
+                        has_touch=True,
+                        locale="en-US",
+                        extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
                     )
-                    > 0
-                    else False
+                    cookie = [
+                        {
+                            "name": "msToken",
+                            "value": config.TIKTOK_COOKIES,
+                            "domain": "www.tiktok.com",
+                            "path": "/",
+                        }
+                    ]
+                    context.add_cookies(cookie)
+                    page = context.new_page()
+
+                    # page.on("response", self.handle_response)
+
+                    # Navigate to the page
+                    page.goto(url, wait_until="networkidle", timeout=60000)
+
+                    # Wait for page content to load (you can adjust the selector)
+                    page.wait_for_timeout(timeout=timeout)  # wait 5 seconds
+
+                    # Get the full HTML after JS has rendered
+                    html_content = page.content()
+                    browser.close()
+                    tree = html.fromstring(html_content)
+                    # page_follower = tree.xpath(
+                    #     "//div/strong[contains(@title, 'Followers')]"
+                    # ).pop()  # noqa
+                    page_likes = tree.xpath(
+                        "//div/strong[contains(@title, 'Likes')]"
+                    ).pop()
+                    is_verified = (
+                        True
+                        if len(
+                            tree.xpath(
+                                "//h1[@data-e2e='user-title']/following-sibling::*[1][self::svg]"  # noqa
+                            )
+                        )
+                        > 0
+                        else False
+                    )
+            except Exception as e:
+                log.error("Failed to scrape Tiktok using playwright: %s", e)
+                log.info("Scraping tiktok via httpx %s", url)
+                scraped = self.scrape_using_request(url)
+                followers = (
+                    page_likes.text_content()
+                    if page_likes
+                    else str(scraped["followerCount"])
                 )
-                posts = self._get_video_dates_sync(url)
-                # posts = self.posts
-                gathered_data = {
-                    "verified": is_verified,
-                    "likes": convert_number_with_suffix(page_likes.text_content()),
-                    "follower": convert_number_with_suffix(
-                        page_follower.text_content()
-                    ),
-                    "posts": posts,
-                }
-                log.info("Gathered data: %s", gathered_data)
-                return gathered_data
+            verification = is_verified if is_verified else scraped["verified"]
+
+            posts = self._get_video_dates_sync(url)
+            # posts = self.posts
+            gathered_data = {
+                "verified": verification,
+                "likes": convert_number_with_suffix(followers),
+                "follower": convert_number_with_suffix(followers),
+                "posts": posts,
+            }
+            log.info("Gathered data: %s", gathered_data)
+            return gathered_data
 
         except Exception as e:
             log.error("Failed to scrape Tiktok: %s", e)
