@@ -67,9 +67,10 @@ class FacebookScraperService:
 
                 # Set a realistic user-agent
                 page.set_extra_http_headers(
-                    {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                    {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"  # noqa
+                    }
                 )
-
                 # Navigate to the page
                 page.goto(url)
 
@@ -134,6 +135,7 @@ class FacebookScraperService:
                     gathered_data["follower"] = convert_number_with_suffix(
                         page_follower.text_content()
                     )
+                log.info("Gathered data: %s", gathered_data)
                 return gathered_data
 
         except Exception as e:

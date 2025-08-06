@@ -289,8 +289,7 @@ class TiktokScraperService:
                 )
                 # posts = self._get_video_dates_sync(url)
                 posts = self.posts
-
-                return {
+                gathered_data = {
                     "verified": is_verified,
                     "likes": convert_number_with_suffix(page_likes.text_content()),
                     "follower": convert_number_with_suffix(
@@ -298,6 +297,9 @@ class TiktokScraperService:
                     ),
                     "posts": posts,
                 }
+                log.info("Gathered data: %s", gathered_data)
+                return gathered_data
+
         except Exception as e:
             log.error("Failed to scrape Tiktok: %s", e)
             return {

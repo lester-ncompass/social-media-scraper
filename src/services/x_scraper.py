@@ -104,13 +104,15 @@ class XScraperService:
                     posts.append(
                         time_to_epoch(re.sub(r"\s+", " ", post.text_content()).strip())
                     )
-                return {
+                gathered_data = {
                     "verified": is_verified,
                     "follower": convert_number_with_suffix(
                         page_follower.text_content().split(" ")[0]
                     ),
                     "posts": posts,
                 }
+                log.info("Gathered data: %s", gathered_data)
+                return gathered_data
 
         except Exception as e:
             log.error("Error while scraping X: %s", e)

@@ -217,14 +217,16 @@ class InstagramScraperService:
                                     dates.append(date)
                             except Exception as e:
                                 log.error("Error processing URL: %s", e)
-
-                return {
+                gathered_data = {
                     "verified": is_verified,
                     "follower": convert_number_with_suffix(
                         page_follower.text_content().split(" ")[0]
                     ),
                     "posts": dates,
                 }
+                log.info("Gathered data: %s", gathered_data)
+
+                return gathered_data
 
         except Exception as e:
             log.error(
