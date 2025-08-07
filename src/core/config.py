@@ -30,6 +30,13 @@ class Config(BaseSettings):
     GOOGLE_API_KEY: str = Field("", validation_alias="GOOGLE_API_KEY")
     APIFY_KEY: str = Field("", validation_alias="APIFY_KEY")
 
+    HTTPX_TIMEOUT: int = Field(120, validation_alias="HTTPX_TIMEOUT")
+    GOOGLE_SEARCH_API_ENDPOINT: str = Field(
+        "https://www.googleapis.com/customsearch/v1",
+        validation_alias="GOOGLE_SEARCH_API_ENDPOINT",
+    )
+    GOOGLE_SEARCH_ENGINE_ID: str = Field("", validation_alias="GOOGLE_SEARCH_ENGINE_ID")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

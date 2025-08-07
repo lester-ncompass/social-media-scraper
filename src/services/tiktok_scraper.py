@@ -1,19 +1,16 @@
 import asyncio
-import datetime
 import logging
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
 from lxml import html
 from playwright.sync_api import sync_playwright
-from TikTokApi import TikTokApi  # type: ignore
 
 from src.core.config import config
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
-from src.utils.time_to_epoch import time_to_epoch
 
 
 class TiktokScraperService:
@@ -22,6 +19,9 @@ class TiktokScraperService:
         self.headless = headless
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.posts = []
+        self.httpx_client = httpx.AsyncClient()
+        if not config.GOOGLE_API_KEY or not config.GOOGLE_SEARCH_ENGINE_ID:
+            raise Exception("Environment variable not found.")
 
     def _get_video_dates_sync(
         self,
@@ -46,46 +46,77 @@ class TiktokScraperService:
 
         return result[0]
 
-    async def _get_video_dates_async(self, url):
+    async def _get_video_dates_async(self, url, page=2):
         """
-        Retrieves the creation timestamps of the latest 5 videos from a TikTok user.
+        Asynchronously scrape TikTok video creation dates.
+
+        This method uses a custom Google search engine to search for TikTok videos
+        with the given username. The `page` parameter determines the number of
+        search results to fetch. The method extracts the video creation dates from
+        the search results and returns them as a list.
 
         Args:
-            url (str): The TikTok URL of the user.
+            url (str): The TikTok profile URL.
+            page (int, optional): The number of search results to fetch. Defaults to 2.
 
         Returns:
-            list: A list of up to 5 timestamps of the latest videos, in epoch seconds.
+            list: A list of video creation dates as Unix timestamps.
         """
+        parsed_url = urlparse(url)
+        path = parsed_url.path
+        username = path.split("/")[-1] if path else None
+        dork_query = f"site:www.tiktok.com inurl:{username}/video/"
+        video_list = []
+        start = 1
+        for _ in range(page):
+            params = {
+                "key": config.GOOGLE_API_KEY,
+                "cx": config.GOOGLE_SEARCH_ENGINE_ID,
+                "num": 10,
+                "q": dork_query,
+                "start": start,
+                "sort": "date",
+            }
+            url = f"{config.GOOGLE_SEARCH_API_ENDPOINT}?{urlencode(params)}"
+            response = await self.httpx_client.get(url, timeout=config.HTTPX_TIMEOUT)
+            response.raise_for_status()
+            data = response.json()
+            # Extract only TikTok video links
+            for item in data.get("items", []):
+                if item["link"].startswith(f"https://www.tiktok.com/{username}/video/"):
+                    create_time = await self.extract_create_time(item["link"])
+                    if create_time is None:
+                        continue
 
-        async with TikTokApi() as api:
-            await api.create_sessions(
-                ms_tokens=[config.TIKTOK_COOKIES],
-                num_sessions=1,
-                override_browser_args=[
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-web-security",
-                    "--disable-features=VizDisplayCompositor",
-                    "--memory-pressure-off",
-                    "--max_old_space_size=256",  # Limit Node.js heap size
-                ],
-            )
-            # Retrieves the username from the URL
-            username = url.split("/")[-1].split("@")[-1]
-            video_list = []
-            async for video in api.user(username=username).videos():
-                video_list.append(
-                    time_to_epoch(
-                        datetime.datetime.fromtimestamp(
-                            video.as_dict["createTime"]
-                        ).strftime("%Y-%m-%d %H:%M:%S")
-                    )
-                )
-                if len(video_list) == 10:
-                    break
+                    video_list.append(create_time)
+
+            start += 10
 
         return video_list
+
+    async def extract_create_time(self, url):
+        """
+        Extracts the creation time of a TikTok video from the video URL.
+
+        The method sends a GET request to the TikTok video URL, parses the HTML
+        response, and extracts the "createTime" value from the page's JSON metadata.
+
+        Args:
+            url (str): The TikTok video URL.
+
+        Returns:
+            int: The creation time of the video as a Unix timestamp, or None if the
+                video creation time could not be extracted.
+        """
+        response = await self.httpx_client.get(url)
+        data = response.text
+        match = re.search(
+            r'"createTime":"(\d+)"',
+            data,
+        )
+        if match:
+            return int(match.group(1))
+        return None
 
     def scrape_using_request(self, url):
         """
@@ -248,8 +279,10 @@ class TiktokScraperService:
 
         log.info("Scraping tiktok %s", url)
         try:
-            page_likes = None
             is_verified = False
+            page_follower = ""
+            scraped = {}
+            followers = ""
             try:
                 with sync_playwright() as p:
                     browser = p.chromium.launch(
@@ -283,12 +316,12 @@ class TiktokScraperService:
                     html_content = page.content()
                     browser.close()
                     tree = html.fromstring(html_content)
-                    # page_follower = tree.xpath(
-                    #     "//div/strong[contains(@title, 'Followers')]"
-                    # ).pop()  # noqa
-                    page_likes = tree.xpath(
-                        "//div/strong[contains(@title, 'Likes')]"
-                    ).pop()
+                    page_follower = (
+                        tree.xpath("//div/strong[contains(@title, 'Followers')]").pop()
+                    ).text_content()  # noqa
+                    # page_likes = (
+                    #     tree.xpath("//div/strong[contains(@title, 'Likes')]").pop()
+                    # ).text_content()
                     is_verified = (
                         True
                         if len(
@@ -303,13 +336,11 @@ class TiktokScraperService:
                 log.error("Failed to scrape Tiktok using playwright: %s", e)
                 log.info("Scraping tiktok via httpx %s", url)
                 scraped = self.scrape_using_request(url)
-                followers = (
-                    page_likes.text_content()
-                    if page_likes
-                    else str(scraped["followerCount"])
-                )
-            verification = is_verified if is_verified else scraped["verified"]
 
+            followers = (
+                page_follower if page_follower else str(scraped["followerCount"])
+            )
+            verification = is_verified if is_verified else scraped["verified"]
             posts = self._get_video_dates_sync(url)
             # posts = self.posts
             gathered_data = {
@@ -335,10 +366,11 @@ class TiktokScraperService:
 
         log.info("Scraping tiktok via httpx %s", url)
         scraped = self.scrape_using_request(url)
-        posts = self.extract_post_using_requests(scraped["secUid"])
-
-        return {
+        posts = self._get_video_dates_sync(url)
+        gathered_data = {
             "verified": scraped["verified"],
             "follower": convert_number_with_suffix(str(scraped["followerCount"])),
             "posts": posts,
         }
+        log.info("Gathered data: %s", gathered_data)
+        return gathered_data
