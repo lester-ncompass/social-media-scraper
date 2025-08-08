@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lxml import html
 from playwright.sync_api import sync_playwright
 
+from src.services.social_dorker import SocialDorkerService
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
 from src.utils.time_to_epoch import time_to_epoch
 
@@ -15,6 +16,7 @@ class FacebookScraperService:
         self.logger = logging.getLogger("FacebookScraperService")
         self.headless = headless
         self.executor = ThreadPoolExecutor(max_workers=1)
+        self.social_dorker = SocialDorkerService()
 
     async def scrape(self, url, timeout=2000):
         """
@@ -91,9 +93,9 @@ class FacebookScraperService:
                 html_content = page.content()
                 browser.close()
                 tree = html.fromstring(html_content)
-                post_age_list = tree.xpath(
-                    "//div[contains(@data-pagelet, 'TimelineFeedUnit')]//div[2]/span//span//a[contains(@role, 'link')]"  # noqa
-                )
+                # post_age_list = tree.xpath(
+                #     "//div[contains(@data-pagelet, 'TimelineFeedUnit')]//div[2]/span//span//a[contains(@role, 'link')]"  # noqa
+                # )
                 page_like = (
                     tree.xpath("//a[contains(@href, 'friends_likes')]/strong").pop()
                     if len(tree.xpath("//a[contains(@href, 'friends_likes')]/strong"))
@@ -116,16 +118,17 @@ class FacebookScraperService:
                     if len(review_path) > 0
                     else "No reviews"
                 )
-                posts = []
-                for post in post_age_list:
-                    posts.append(
-                        time_to_epoch(re.sub(r"\s+", " ", post.text_content()).strip())
-                    )
-
+                posts = self.social_dorker.get_video_dates(
+                    url, dork_fn=self.social_dorker.get_facebook_dork
+                )
+                print("Facebook Video Creation Dates:", posts)
                 gathered_data = {
                     "verified": is_verified,
                     "reviews": reviews,
-                    "posts": posts,
+                    "posts": [
+                        time_to_epoch(re.sub(r"\s+", " ", post).strip())
+                        for post in posts
+                    ],
                 }
                 if isinstance(page_like, html.HtmlElement):
                     gathered_data["like"] = convert_number_with_suffix(

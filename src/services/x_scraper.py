@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lxml import html
 from playwright.sync_api import sync_playwright
 
+from src.services.social_dorker import SocialDorkerService
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
 from src.utils.time_to_epoch import time_to_epoch
 
@@ -15,6 +16,7 @@ class XScraperService:
         self.logger = logging.getLogger("XScraperService")
         self.headless = headless
         self.executor = ThreadPoolExecutor(max_workers=1)
+        self.social_dorker = SocialDorkerService()
 
     async def scrape(self, url, timeout=2000):
         """
@@ -88,9 +90,9 @@ class XScraperService:
                 html_content = page.content()
                 browser.close()
                 tree = html.fromstring(html_content)
-                post_age_list = tree.xpath(
-                    "//*[contains(@href, 'status')][contains(@dir, 'ltr')]"
-                )
+                # post_age_list = tree.xpath(
+                #     "//*[contains(@href, 'status')][contains(@dir, 'ltr')]"
+                # )
                 page_follower = tree.xpath("//*[contains(@href, 'verified')]")[0]
                 is_verified = (
                     True
@@ -99,17 +101,18 @@ class XScraperService:
                     else False
                 )
 
-                posts = []
-                for post in post_age_list:
-                    posts.append(
-                        time_to_epoch(re.sub(r"\s+", " ", post.text_content()).strip())
-                    )
+                posts = self.social_dorker.get_video_dates(
+                    url, dork_fn=self.social_dorker.get_x_dork
+                )
                 gathered_data = {
                     "verified": is_verified,
                     "follower": convert_number_with_suffix(
                         page_follower.text_content().split(" ")[0]
                     ),
-                    "posts": posts,
+                    "posts": [
+                        time_to_epoch(re.sub(r"\s+", " ", post).strip())
+                        for post in posts
+                    ],
                 }
                 log.info("Gathered data: %s", gathered_data)
                 return gathered_data

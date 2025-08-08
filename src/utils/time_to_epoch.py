@@ -41,6 +41,23 @@ def time_to_epoch(s: str) -> int:
             raise ValueError(f"Unknown time unit: {unit}")
         return int(dt.timestamp())
 
+    # Handle relative time with words (e.g. "22 hours ago")
+    rel_match = re.match(r"(\d+)\s*(\w+)\s*ago$", s)
+    if rel_match:
+        value, unit = rel_match.groups()
+        value = int(value)
+        if unit == "hours":
+            dt = now - timedelta(hours=value)
+        elif unit == "minutes":
+            dt = now - timedelta(minutes=value)
+        elif unit == "days":
+            dt = now - timedelta(days=value)
+        elif unit == "day":
+            dt = now - timedelta(days=value)
+        else:
+            raise ValueError(f"Unknown time unit: {unit}")
+        return int(dt.timestamp())
+
     # Try parsing absolute date with abbreviated or full month name (e.g., "Jun 18, 2024" or "June 18, 2024")  # noqa
     for fmt in ("%b %d, %Y", "%B %d, %Y"):
         try:

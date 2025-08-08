@@ -267,6 +267,9 @@ class InstagramScraperService:
                 - error (str, optional): An error message if scraping fails.
                 - message (str, optional): A failure message if scraping fails.
         """
+        if not url:
+            return "No URL provided."
+
         log = self.logger.getChild("scrape_via_apify")
         try:
             gathered_data = self._fallback_to_apify(url)

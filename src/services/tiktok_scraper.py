@@ -1,16 +1,17 @@
 import asyncio
 import logging
 import re
-import threading
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 from lxml import html
 from playwright.sync_api import sync_playwright
 
 from src.core.config import config
+from src.services.social_dorker import SocialDorkerService
 from src.utils.convert_number_with_suffix import convert_number_with_suffix
+from src.utils.time_to_epoch import time_to_epoch
 
 
 class TiktokScraperService:
@@ -19,80 +20,10 @@ class TiktokScraperService:
         self.headless = headless
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.posts = []
-        self.httpx_client = httpx.AsyncClient()
+        self.httpx_client = httpx.Client()
         if not config.GOOGLE_API_KEY or not config.GOOGLE_SEARCH_ENGINE_ID:
             raise Exception("Environment variable not found.")
-
-    def _get_video_dates_sync(
-        self,
-        url,
-    ):
-        result = []
-
-        def run():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                result.append(loop.run_until_complete(self._get_video_dates_async(url)))
-            finally:
-                loop.close()
-
-        thread = threading.Thread(target=run)
-        thread.start()
-        thread.join()
-
-        if not result:
-            return []
-
-        return result[0]
-
-    async def _get_video_dates_async(self, url, page=2):
-        """
-        Asynchronously scrape TikTok video creation dates.
-
-        This method uses a custom Google search engine to search for TikTok videos
-        with the given username. The `page` parameter determines the number of
-        search results to fetch. The method extracts the video creation dates from
-        the search results and returns them as a list.
-
-        Args:
-            url (str): The TikTok profile URL.
-            page (int, optional): The number of search results to fetch. Defaults to 2.
-
-        Returns:
-            list: A list of video creation dates as Unix timestamps.
-        """
-        parsed_url = urlparse(url)
-        path = parsed_url.path
-        username = path.split("/")[-1] if path else None
-        dork_query = f"site:www.tiktok.com inurl:{username}/video/"
-        video_list = []
-        start = 1
-        for _ in range(page):
-            params = {
-                "key": config.GOOGLE_API_KEY,
-                "cx": config.GOOGLE_SEARCH_ENGINE_ID,
-                "num": 10,
-                "q": dork_query,
-                "start": start,
-                "sort": "date",
-            }
-            url = f"{config.GOOGLE_SEARCH_API_ENDPOINT}?{urlencode(params)}"
-            response = await self.httpx_client.get(url, timeout=config.HTTPX_TIMEOUT)
-            response.raise_for_status()
-            data = response.json()
-            # Extract only TikTok video links
-            for item in data.get("items", []):
-                if item["link"].startswith(f"https://www.tiktok.com/{username}/video/"):
-                    create_time = await self.extract_create_time(item["link"])
-                    if create_time is None:
-                        continue
-
-                    video_list.append(create_time)
-
-            start += 10
-
-        return video_list
+        self.social_dorker = SocialDorkerService(httpx_client=self.httpx_client)
 
     async def extract_create_time(self, url):
         """
@@ -360,17 +291,24 @@ class TiktokScraperService:
             }
 
     async def scrape_via_httpx(self, url, timeout=2000):
+        if not url:
+            return "No URL provided."
+
         log = self.logger.getChild("scrape_via_httpx")
         if not url:
             return "No URL provided."
 
         log.info("Scraping tiktok via httpx %s", url)
         scraped = self.scrape_using_request(url)
-        posts = self._get_video_dates_sync(url)
+        posts = self.social_dorker.get_video_dates(
+            url, dork_fn=self.social_dorker.get_tiktok_dork
+        )
         gathered_data = {
             "verified": scraped["verified"],
             "follower": convert_number_with_suffix(str(scraped["followerCount"])),
-            "posts": posts,
+            "posts": [
+                time_to_epoch(re.sub(r"\s+", " ", post).strip()) for post in posts
+            ],
         }
         log.info("Gathered data: %s", gathered_data)
         return gathered_data
