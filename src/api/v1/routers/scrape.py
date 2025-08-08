@@ -55,10 +55,14 @@ async def scrape(
 
     # This will be used for sequential scraping
     facebook_results = await facebook.scrape(url=data.facebook, timeout=2000)
-    instagram_results = await instagram.scrape(url=data.instagram, timeout=2000)
+    # This is playwright scraping
+    # instagram_results = await instagram.scrape(url=data.instagram, timeout=2000)
     # tiktok_results = await tiktok.scrape(
     #     url=data.tiktok, timeout=2000
-    # )  # This is playwright scraping
+    # )
+    instagram_results = await instagram.scrape_via_apify(
+        url=data.instagram, timeout=2000
+    )
     tiktok_results = await tiktok.scrape_via_httpx(url=data.tiktok, timeout=2000)
     x_results = await x.scrape(url=data.x, timeout=2000)
     gathered_data = {

@@ -53,7 +53,8 @@ class InstagramScraperService:
                 "resultsType": "details",
                 "searchLimit": 1,
                 "searchType": "hashtag",
-            }
+            },
+            logger=None,
         )
         for item in self.apify_client.dataset(run["defaultDatasetId"]).iterate_items():
             followers = item["followersCount"]
@@ -240,3 +241,41 @@ class InstagramScraperService:
                     "error": str(e),
                     "message": "Failed to scrape Instagram",
                 }
+
+    async def scrape_via_apify(self, url, timeout=2000):
+        """
+        Run sync apify in a thread pool to avoid event loop conflicts
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.executor, lambda: self._sync_scrape_via_apify(url, timeout)
+        )
+
+    def _sync_scrape_via_apify(self, url, timeout=2000):
+        """
+        Scrapes Instagram data using Apify's Instagram scraper.
+
+        Args:
+            url (str): The Instagram URL to scrape.
+            timeout (int, optional): The time to wait for page content to load.
+
+        Returns:
+            dict: A dictionary containing the scraped data, including:
+                - verified (bool): Whether the account is verified.
+                - follower (int): The number of followers, if available.
+                - posts (list): A list of timestamps of the posts.
+                - error (str, optional): An error message if scraping fails.
+                - message (str, optional): A failure message if scraping fails.
+        """
+        log = self.logger.getChild("scrape_via_apify")
+        try:
+            gathered_data = self._fallback_to_apify(url)
+            log.info("Gathered data: %s", gathered_data)
+
+            return gathered_data
+        except Exception as e:
+            log.error("Fallback failed: %s", e)
+            return {
+                "error": str(e),
+                "message": "Failed to scrape Instagram",
+            }
