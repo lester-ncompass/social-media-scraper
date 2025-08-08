@@ -49,10 +49,9 @@ class InstagramScraperService:
                 "enhanceUserSearchWithFacebookPage": False,
                 "isUserReelFeedURL": False,
                 "isUserTaggedFeedURL": False,
-                "resultsLimit": 1,
+                "resultsLimit": 20,
                 "resultsType": "details",
-                "searchLimit": 1,
-                "searchType": "hashtag",
+                "searchLimit": 2,
             },
             logger=None,
         )

@@ -22,7 +22,9 @@ class RateSocialMediaService:
         - The third most recent week gets 0.5 of the score
         - The fourth most recent week gets 0.25 of the score
 
-        The total score is then divided by the number of posts in the list.
+        The total score is then divided by weighted sum of 12.5 which expects 5 posts
+        per week
+        (5 * 1) + (5 * 0.75) + (5 * 0.5) + (5 * 0.25) = 5 + 3.75 + 2.5 + 1.25 = 12.5
 
         Args:
             post_list (list): A list of timestamps of the gathered recent posts.
@@ -30,7 +32,7 @@ class RateSocialMediaService:
 
         Returns:
             float: The calculated post score.
-        """
+        """  # noqa
         now = time.time()
         FIRST_WEEK_SECONDS = 7 * 24 * 60 * 60  # days x hours x minutes x seconds
         SECOND_WEEK_SECONDS = 14 * 24 * 60 * 60  # days x hours x minutes x seconds
@@ -59,8 +61,11 @@ class RateSocialMediaService:
         )
         first = sum(1 for ts in sorted_posts if now - ts <= FIRST_WEEK_SECONDS)
         total_score = (
-            ((first) + (second * 0.75) + (third * 0.5) + (fourth * 0.25)) / post_length
+            ((first) + (second * 0.75) + (third * 0.5) + (fourth * 0.25)) / 12.5
         ) * max_score
+
+        if total_score > max_score:
+            total_score = max_score
 
         # Round to the nearest 2 decimal places
         return round(total_score, 2)

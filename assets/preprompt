@@ -9,7 +9,7 @@ Like/Follower Count (20%)
 Maximum of 10 points for 10,000 or more likes/followers. Scale proportionally for values below that.
 
 Posts Activity (70%)
-Based on the 5 most recent post timestamps per platform.
+Based on the most recent post timestamps per platform.
 
 Recency weights:
 0–7 days: 100%
