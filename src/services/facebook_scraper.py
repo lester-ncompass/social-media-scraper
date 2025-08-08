@@ -121,7 +121,6 @@ class FacebookScraperService:
                 posts = self.social_dorker.get_video_dates(
                     url, dork_fn=self.social_dorker.get_facebook_dork
                 )
-                print("Facebook Video Creation Dates:", posts)
                 gathered_data = {
                     "verified": is_verified,
                     "reviews": reviews,
